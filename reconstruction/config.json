@@ -1,0 +1,16 @@
+{
+  "data":[
+    {
+      "NTU-RGB+D-60": {
+        "path": "data\\NTU-RGB+D",
+        "joint_num": 25
+      }
+    },
+    {
+      "NTU-RGB+D-120": {
+        "path": "data\\NTU-RGB+D-120",
+        "joint_num": 25
+      }
+    }
+  ]
+}
