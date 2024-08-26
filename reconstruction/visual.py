@@ -5,11 +5,10 @@ import random
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# 1-sacrum, 2-middle of the spine, 3-neck, 4-head, 5-left shoulder 
-# 6-left elbow, 7-left wrist, 8left hand, 9-right shoulder, 10-right elbow 
-# 11-right wrist, 12right hand, 13-left hip, 14-left knee, 15-left ankle 
-# 16-left foot, 17right hip, 18-right knee, 19-right ankle, 20-right foot 
-# 21-spine, 22-tip of the left hand, 23-left thumb, 24-tip of the right hand, 25-right thumb
+option_matplot, option_blender = [True, False]
+
+if option_blender:
+  import blender_script
 
 # Check the current path and load the config file path
 def run_config_path_check():
@@ -99,14 +98,14 @@ def load_data(num_to_load = 0):
         file_data = process_skeleton_data(file_sequence)
         processed_data.append(file_data)
 
-    return processed_data
+    return processed_data, connections
 
   except FileNotFoundError as e:
     print(e)
   except ValueError as e:
     print(e)
 
-def plot_frame_3d(joint_coordinates):
+def plot_frame_3d(joint_coordinates, connections_group):
   fig = plt.figure()
   ax = fig.add_subplot(111, projection='3d')
 
@@ -117,6 +116,21 @@ def plot_frame_3d(joint_coordinates):
   # Plot in 3D
   ax.scatter(x, y, z, c='r', marker='o')
   
+  color_list = ['blue', 'green', 'purple', 'orange', 'black', 'yellow', 'pink', 'brown', 'cyan', 'magenta']
+
+  for color, (part, edges) in zip(color_list[0:(len(connections_group) % len(color_list))], connections_group.items()):
+    for connection in edges:
+      vertice1, vertice2 = connection
+      x_values = [x[vertice1], x[vertice2]]
+      y_values = [y[vertice1], y[vertice2]]
+      z_values = [z[vertice1], z[vertice2]]
+      ax.plot(x_values, y_values, z_values, c=color, label=part)
+
+  # Avoid overlapping labels
+  handles, labels = plt.gca().get_legend_handles_labels()
+  by_label = dict(zip(labels, handles))
+  plt.legend(by_label.values(), by_label.keys())
+
   # Set labels
   ax.set_xlabel('X')
   ax.set_ylabel('Y')
@@ -124,14 +138,19 @@ def plot_frame_3d(joint_coordinates):
   
   plt.show()
   
-def plot_skeleton_data(processed_data):
-  # Plot the first frame of the first file as an example
-  if processed_data:
-    for frame_data in processed_data[0]:
-      plot_frame_3d(frame_data)
-
+def plot_skeleton_data(processed_data, connections):
+  if option_matplot:
+    # Plot the first frame of the first file as an example
+    if processed_data:
+      for frame_data in processed_data[0]:
+        plot_frame_3d(frame_data, connections[0])
+  elif option_blender:
+    # Call function and Create a sphere in Blender
+    pass
+  else:
+    print("No plotting option selected")
 
 # Load and plot the data
 if __name__ == "__main__":
-    processed_data = load_data(num_to_load=1)  # Load 1 file for example
-    plot_skeleton_data(processed_data)
+  processed_data, connections = load_data(num_to_load=1)  # Load 1 file for example
+  plot_skeleton_data(processed_data, connections)
