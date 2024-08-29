@@ -26,5 +26,16 @@
         }
       }
     }
+  ],
+  "render": [
+    {
+      "matplotlib": {}
+    },
+    {
+      "blender": {
+        "path": "G:\\steam\\steamapps\\common\\Blender\\blender.exe",
+        "output": "output\\skeleton_data.pkl"
+      }
+    }
   ]
 }

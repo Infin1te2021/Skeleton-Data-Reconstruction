@@ -2,13 +2,9 @@ import numpy as np
 import json
 import os
 import random
+import subprocess
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-
-option_matplot, option_blender = [True, False]
-
-if option_blender:
-  import blender_script
 
 # Check the current path and load the config file path
 def run_config_path_check():
@@ -47,8 +43,20 @@ def load_data_path(config_path, root_path):
   for path in paths:
     if not os.path.exists(path):
       raise FileNotFoundError(f"Path does not exist: {path}")
-  
   return dataset_names, paths, joint_num, connections
+
+def run_blender_script(blender_path, data_file_path):
+  blender_path = blender_path
+  blender_script_path = "blender_script.py"
+
+  command = [
+    blender_path,
+    '--background',
+    '--python', blender_script_path,
+    '--', data_file_path
+  ]
+
+  subprocess.run(command)
 
 def process_skeleton_data(file_sequence):
   total_frames = int(file_sequence[0])
@@ -138,19 +146,16 @@ def plot_frame_3d(joint_coordinates, connections_group):
   
   plt.show()
   
-def plot_skeleton_data(processed_data, connections):
-  if option_matplot:
-    # Plot the first frame of the first file as an example
-    if processed_data:
-      for frame_data in processed_data[0]:
-        plot_frame_3d(frame_data, connections[0])
-  elif option_blender:
-    # Call function and Create a sphere in Blender
-    pass
+def plot_skeleton_data(processed_data, connections, opt_matplot, opt_blender):
+  if processed_data:
+    if opt_matplot:
+        for frame_data in processed_data[0]:
+          plot_frame_3d(frame_data, connections[0])
+    elif opt_blender:
+      import blender_script
+      for frame_num, frame_data in enumerate(processed_data[0], start=1):
+        blender_script.plot_skeleton_frame_blender(frame_data, connections[0], frame=frame_num)
+    else:
+      print("No plotting option selected")
   else:
-    print("No plotting option selected")
-
-# Load and plot the data
-if __name__ == "__main__":
-  processed_data, connections = load_data(num_to_load=1)  # Load 1 file for example
-  plot_skeleton_data(processed_data, connections)
+    print("No data to plot")
