@@ -1,8 +1,15 @@
-from flask import Flask
+# from flask import Flask
+import os
+import sys
 import datetime
-import visual as vs
+
 [option_matplot, option_blender] = [False, True]
 
+# Set the working directory to the directory containing this script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(script_dir)  # Add the script directory to the Python path
+os.chdir(script_dir)  # Change working directory
+import visual as vs
 # x = datetime.datetime.now()
 
 # Initializing flask app
@@ -21,5 +28,5 @@ import visual as vs
 
 # Load and plot the data
 if __name__ == "__main__":
-  processed_data, connections = vs.load_data(num_to_load=1)  # Load 1 file for example
+  processed_data, connections = vs.load_skeleton_data(num_to_load=1)  # Load 1 file for example
   vs.plot_skeleton_data(processed_data, connections, option_matplot, option_blender)
