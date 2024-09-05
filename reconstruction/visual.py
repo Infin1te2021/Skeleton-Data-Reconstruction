@@ -3,8 +3,10 @@ import json
 import os
 import random
 import subprocess
-# import matplotlib.pyplot as plt
-# from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+# import bpy
+# import mathutils
 
 # Check the current path and load the config file path
 def get_config_and_root_path():
@@ -21,7 +23,6 @@ def get_config_and_root_path():
   config_path = os.path.join(root_path, "config.json")
 
   return config_path, root_path
-
 
 # Load the data path from the config file and check if the path exists
 def load_data_from_config(config_path, root_path):
@@ -48,16 +49,16 @@ def load_data_from_config(config_path, root_path):
       raise FileNotFoundError(f"Path does not exist: {path}")
   return dataset_names, paths, joint_num, connections, blender_path
 
-def execute_blender_script(blender_path, blend_file_path='./reconstruction/output/untitled.blend', script_path='./reconstruction/blender_script.py'):
-  command = [
-    blender_path,
-    blend_file_path,
-    '--background',
-    '--python', script_path
-    #'--', data_file_path
-  ]
-
-  subprocess.run(command, check=True)
+# def execute_blender_script(blender_path, blend_file_path='./reconstruction/output/untitled.blend', script_path='./reconstruction/main.py'):
+#   command = [
+#     blender_path,
+#     # blend_file_path,
+#     '--background',
+#     '--python', script_path
+#     #'--', data_file_path
+#   ]
+#   print(command)
+#   subprocess.run(command, check=True)
 
 def parse_skeleton_data(file_sequence):
   total_frames = int(file_sequence[0])
@@ -112,26 +113,36 @@ def load_skeleton_data(num_to_load = 0):
   except ValueError as e:
     print(e)
 
-def plot_frame_3d(joint_coordinates, connections_group):
+def plot_frame_3d_animation(joint_coordinates_list, connections_group, padding=0.1):
+  
   fig = plt.figure()
   ax = fig.add_subplot(111, projection='3d')
 
-  x = [coord[0] for coord in joint_coordinates]
-  y = [coord[1] for coord in joint_coordinates]
-  z = [coord[2] for coord in joint_coordinates]
-  
-  # Plot in 3D
-  ax.scatter(x, y, z, c='r', marker='o')
+  # Calculate min and max for each axis with padding
+  all_coords = np.array([coord for frame in joint_coordinates_list for coord in frame])
+  x_min, y_min, z_min = all_coords.min(axis=0) - padding
+  x_max, y_max, z_max = all_coords.max(axis=0) + padding
+
+  ax.set_xlim(x_min, x_max)
+  ax.set_ylim(y_min, y_max)
+  ax.set_zlim(z_min, z_max)
   
   color_list = ['blue', 'green', 'purple', 'orange', 'black', 'yellow', 'pink', 'brown', 'cyan', 'magenta']
-  color_cycle = color_list[:len(connections_group) % len(color_list)]
+  color_cycle = color_list[:len(connections_group[0]) % len(color_list)]
+  
+  # Initialize the plot elements (scatter points and lines)
+  scatter = ax.scatter([], [], [], c='r', marker='o')
 
-  for color, (part, edges) in zip(color_cycle, connections_group.items()):
+  # Dictionary to hold line plots for each connection group
+  line_plots = {part: [] for part in connections_group[0].keys()}
+
+  # Assign colors to each part based on the color cycle
+  part_colors = {part: color for part, color in zip(connections_group[0].keys(), color_cycle)}
+  
+  for part, edges in connections_group[0].items():
     for vertice1, vertice2 in edges:
-      x_values = [x[vertice1], x[vertice2]]
-      y_values = [y[vertice1], y[vertice2]]
-      z_values = [z[vertice1], z[vertice2]]
-      ax.plot(x_values, y_values, z_values, c=color, label=part)
+      line, = ax.plot([], [], [], c=part_colors[part], label=part)
+      line_plots[part].append(line)
 
   # Avoid overlapping labels
   handles, labels = plt.gca().get_legend_handles_labels()
@@ -139,21 +150,64 @@ def plot_frame_3d(joint_coordinates, connections_group):
   plt.legend(by_label.values(), by_label.keys())
 
   # Set labels
-  ax.set_xlabel('X')
-  ax.set_ylabel('Y')
-  ax.set_zlabel('Z')
-  
+  ax.set_xlabel('X (Forward)')
+  ax.set_ylabel('Y (Lateral)')
+  ax.set_zlabel('Z (Up)')
+
+  # Set the view to match the human body coordinate system
+  ax.view_init(elev=90, azim=-90)  # Adjust the elevation and azimuth
+
+  def init():
+    # Initialize scatter plot
+    scatter._offsets3d = ([], [], [])
+    # Initialize line plots
+    for lines in line_plots.values():
+      for line in lines:
+        line.set_data([], [])
+        line.set_3d_properties([])
+    return [scatter] + [line for lines in line_plots.values() for line in lines]
+
+  def update(frame):
+    joint_coordinates = joint_coordinates_list[frame]
+
+    x = [coord[0] for coord in joint_coordinates]
+    y = [coord[1] for coord in joint_coordinates]
+    z = [coord[2] for coord in joint_coordinates]
+
+    # Update scatter plot
+    scatter._offsets3d = (x, y, z)
+
+      # Update line plots
+    for part, edges in connections_group[0].items():
+      for line, (vertice1, vertice2) in zip(line_plots[part], edges):
+        line.set_data([x[vertice1], x[vertice2]], [y[vertice1], y[vertice2]])
+        line.set_3d_properties([z[vertice1], z[vertice2]])
+
+    return [scatter] + [line for lines in line_plots.values() for line in lines]
+
+  # Create animation
+  anim = FuncAnimation(fig, update, frames=len(joint_coordinates_list), init_func=init, blit=True, repeat=True)
+
   plt.show()
-  
+
 def plot_skeleton_data(processed_data, connections, opt_matplot, opt_blender):
   if processed_data:
     if opt_matplot:
-      for frame_data in processed_data[0]:
-        plot_frame_3d(frame_data, connections[0])
+      for frame_data in processed_data:
+        plot_frame_3d_animation(frame_data, connections, padding=0.1)
     elif opt_blender:
-      import blender_script
-      for frame_num, frame_data in enumerate(processed_data[0], start=1):
-        blender_script.plot_skeleton_frame_blender(frame_data, connections[0], frame=frame_num, save_path="rendered.blend")
+      pass
+      # clear_scene()
+      # Check if any object exists before creating an armature
+      # if len(bpy.data.objects) == 0:
+        #armature = create_armature(processed_data, connections)
+        #for bone in armature.data.bones:
+        #  print(f"Bone: {bone.name}, Parent: {bone.parent.name if bone.parent else None}")
+        # Animate skeleton with connections
+        # animate_skeleton(armature, processed_data, connections)
+        # save_blender_file()
+      # else:
+      #   print("Blender scene is not empty, unable to proceed.")
     else:
       print("No plotting option selected")
   else:
