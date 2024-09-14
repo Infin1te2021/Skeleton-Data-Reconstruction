@@ -3,10 +3,17 @@ import json
 import os
 import random
 import subprocess
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-# import bpy
-# import mathutils
+import importlib
+
+def import_matplotlib():
+  global plt, FuncAnimation
+  plt = importlib.import_module('matplotlib.pyplot')  # Correctly import the pyplot submodule
+  FuncAnimation = importlib.import_module('matplotlib.animation').FuncAnimation
+
+def import_blender():
+  global bpy, mathutils
+  bpy = importlib.import_module('bpy')
+  mathutils = importlib.import_module('mathutils')
 
 # Check the current path and load the config file path
 def get_config_and_root_path():
@@ -30,17 +37,31 @@ def load_data_from_config(config_path, root_path):
     config = json.load(f)
   
   dataset_names = []
-  paths = []
+  paths = [] # Might need to delete (substitude) in the future
   joint_num = []
   connections = []
+  
+  # ntu_paths = []
+  # mscoco_paths = []
+  # other_paths = []
 
   for data_entry in config["data"]:
     for key, value in data_entry.items():
       dataset_names.append(key)
       path = os.path.join(root_path, value["path"])
-      paths.append(path)
+      paths.append(path) # To be delete
       joint_num.append(value["joint_num"])
       connections.append(value["connection"])
+
+      # if "NTU" in key:
+      #   ntu_paths.append(path)
+      #   connections.append(value["connection"])  # NTU-specific connection structure
+      # elif "MSCOCO" in key:
+      #   mscoco_paths.append(path)
+      #   connections.append(value["connection"])  # MSCOCO-specific connection structure
+      # else:
+      #   other_paths.append(path)
+      #   connections.append(value["connection"])
 
   blender_path = config["render"][1]["blender"]["path"]
 
@@ -48,6 +69,11 @@ def load_data_from_config(config_path, root_path):
     if not os.path.exists(path):
       raise FileNotFoundError(f"Path does not exist: {path}")
   return dataset_names, paths, joint_num, connections, blender_path
+
+  # for path in ntu_paths + mscoco_paths + other_paths:
+  #   if not os.path.exists(path):
+  #     raise FileNotFoundError(f"Path does not exist: {path}")
+  # return ntu_paths, mscoco_paths, other_paths, joint_num, connections, blender_path
 
 # def execute_blender_script(blender_path, blend_file_path='./reconstruction/output/untitled.blend', script_path='./reconstruction/main.py'):
 #   command = [
@@ -82,17 +108,46 @@ def parse_skeleton_data(file_sequence):
 
   return all_frame_data
 
-def load_skeleton_data(num_to_load = 0):
+def load_skeleton_data(database_opt, num_to_load = 0):
   try:
     config_path, root_path = get_config_and_root_path()
     dataset_names, paths, joint_num, connections, blender_path = load_data_from_config(config_path, root_path)
+    # ntu_paths, mscoco_paths, other_paths, joint_num, connections, blender_path = load_data_from_config(config_path, root_path)
 
     all_data = []
-    for path in paths:
+    # ntu_data = []
+    # mscoco_data = []
+    # other_data = []
+
+    if database_opt in dataset_names:
+      print(f"Loading data from {database_opt} dataset")
+      path2load = paths[dataset_names.index(database_opt)]
+    elif database_opt == "NTU-RGB+D-All":
+      print(f"Loading data from all NTU-RGB+D datasets")
+      path2load = [paths[dataset_names.index("NTU-RGB+D-60")], paths[dataset_names.index("NTU-RGB+D-120")]]
+    else:
+      print(f"Database option not found in the config file")
+
+    for path in path2load:
       skeleton_files = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.skeleton')]
       all_data.extend(skeleton_files)
+    
+    # for path in ntu_paths:
+    #   skeleton_files = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.skeleton')]
+    #   ntu_data.extend(skeleton_files)
 
+    # for path in mscoco_paths:
+    #   skeleton_files = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.jpg')]
+    #   mscoco_data.extend(skeleton_files)
+
+    # for path in mscoco_paths:
+    #   skeleton_files = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.jpg')] ## Depends on the file format
+    #   mscoco_data.extend(skeleton_files)
+
+    # all_data = ntu_data + mscoco_data + other_data
+    
     if num_to_load > len(all_data):
+    # if num_to_load > len(ntu_data + mscoco_data + other_data):
       raise ValueError(f"num_to_load is greater than the number of skeleton files in the dataset")
     elif num_to_load == 0:
       selected_files = all_data
@@ -114,7 +169,7 @@ def load_skeleton_data(num_to_load = 0):
     print(e)
 
 def plot_frame_3d_animation(joint_coordinates_list, connections_group, padding=0.1):
-  
+  import_matplotlib()
   fig = plt.figure()
   ax = fig.add_subplot(111, projection='3d')
 
@@ -187,16 +242,30 @@ def plot_frame_3d_animation(joint_coordinates_list, connections_group, padding=0
 
   # Create animation
   anim = FuncAnimation(fig, update, frames=len(joint_coordinates_list), init_func=init, blit=True, repeat=True)
-
+  # anim.save(filename="gif_example.gif", writer="pillow")
   plt.show()
 
-def plot_skeleton_data(processed_data, connections, opt_matplot, opt_blender):
+def blender_frame_3d_animation():
+  import_blender()
+  def clear_scene():
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.ops.object.select_by_type(type='ARMATURE')
+    bpy.ops.object.delete()
+
+def plot_skeleton_data(processed_data, connections, plot_opt):
+# def plot_skeleton_data(ntu_processed_data, mscoco_processed_data, connections, plot_option, data_option):
   if processed_data:
-    if opt_matplot:
+    if plot_opt == "matplot":
       for frame_data in processed_data:
         plot_frame_3d_animation(frame_data, connections, padding=0.1)
-    elif opt_blender:
+    elif plot_opt == "blender":
       pass
+  # if data_option[0]:
+    # if plot_option[0]:
+    #   for frame_data in ntu_processed_data:
+    #     plot_frame_3d_animation(frame_data, connections, padding=0.1)
+    # elif plot_option[1]:
+    #   pass
       # clear_scene()
       # Check if any object exists before creating an armature
       # if len(bpy.data.objects) == 0:
@@ -210,5 +279,10 @@ def plot_skeleton_data(processed_data, connections, opt_matplot, opt_blender):
       #   print("Blender scene is not empty, unable to proceed.")
     else:
       print("No plotting option selected")
+  # elif data_option[1]:
+  #   if plot_option[0]:
+  #     for frame_data in mscoco_processed_data:
+  #       pass
+  #       # plot_frame_2d(frame_data, connections, padding=0.1)
   else:
     print("No data to plot")
