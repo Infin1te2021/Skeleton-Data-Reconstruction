@@ -108,7 +108,7 @@ def parse_skeleton_data(file_sequence):
 
   return all_frame_data
 
-def load_skeleton_data(database_opt, num_to_load = 0):
+def load_skeleton_data(database_opt, subset_mask = '111', num_to_load = 0):
   try:
     config_path, root_path = get_config_and_root_path()
     dataset_names, paths, joint_num, connections, blender_path = load_data_from_config(config_path, root_path)
@@ -121,15 +121,36 @@ def load_skeleton_data(database_opt, num_to_load = 0):
 
     if database_opt in dataset_names:
       print(f"Loading data from {database_opt} dataset")
-      path2load = paths[dataset_names.index(database_opt)]
-    elif database_opt == "NTU-RGB+D-All":
-      print(f"Loading data from all NTU-RGB+D datasets")
-      path2load = [paths[dataset_names.index("NTU-RGB+D-60")], paths[dataset_names.index("NTU-RGB+D-120")]]
+      path2load = [paths[dataset_names.index(database_opt)]] # Make sure the paths are in a list
+      if os.path.isdir(os.path.join(path2load[0], "train")) or \
+        os.path.isdir(os.path.join(path2load[0], "val")) or \
+        os.path.isdir(os.path.join(path2load[0], "test")):
+        if subset_mask[0] == '1' and os.path.isdir(os.path.join(path2load[0], "train")):
+          path2load.append(os.path.join(path2load[0], "train"))
+        if subset_mask[1] == '1' and os.path.isdir(os.path.join(path2load[0], "val")):
+          path2load.append(os.path.join(path2load[0], "val"))
+        if subset_mask[2] == '1' and os.path.isdir(os.path.join(path2load[0], "test")):
+          path2load.append(os.path.join(path2load[0], "test"))
+        print(f"Paths to load based on subset mask {subset_mask}: {path2load}")
+      elif database_opt == "NTU-RGB+D-All":
+        print(f"Loading data from all NTU-RGB+D datasets")
+        path2load = [paths[dataset_names.index("NTU-RGB+D-60")], paths[dataset_names.index("NTU-RGB+D-120")]]
+      else:
+        print(f"Load skeleton data from {database_opt} dataset directly")
     else:
       print(f"Database option not found in the config file")
+      return None
+    
+    for subpath in path2load:
+      if not os.path.exists(subpath):
+        print(f"Subpath {subpath} does not exist.")
+        continue  # Skip to the next path
 
-    for path in path2load:
-      skeleton_files = [os.path.join(path, f) for f in os.listdir(path) if f.endswith('.skeleton')]
+      skeleton_files = [os.path.join(subpath, f) for f in os.listdir(subpath) if f.endswith('.skeleton') or f.endswith('.json')]
+      if not skeleton_files:
+        print(f"No skeleton files found in {subpath}.")
+        continue
+
       all_data.extend(skeleton_files)
     
     # for path in ntu_paths:
@@ -210,7 +231,7 @@ def plot_frame_3d_animation(joint_coordinates_list, connections_group, padding=0
   ax.set_zlabel('Z (Up)')
 
   # Set the view to match the human body coordinate system
-  ax.view_init(elev=90, azim=-90)  # Adjust the elevation and azimuth
+  ax.view_init(elev=125, azim=-90)  # Adjust the elevation and azimuth
 
   def init():
     # Initialize scatter plot
